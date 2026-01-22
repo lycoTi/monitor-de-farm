@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Monitor Farm PWA</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="icon"
+        href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🌱</text></svg>">
+</head>
+
+<body class="bg-slate-900 text-white pb-20">
+
+    <header class="bg-slate-800 p-4 sticky top-0 z-50 shadow-lg border-b border-slate-700">
+        <div class="flex justify-between items-center">
+            <h1 class="text-xl font-bold bg-gradient-to-r from-green-400 to-blue-500 text-transparent bg-clip-text">
+                Monitor Farm
+            </h1>
+            <div id="relogio" class="text-xs text-slate-400 font-mono">00:00</div>
+        </div>
+    </header>
+
+    <main class="p-4 space-y-6">
+
+        <section>
+            <h2 class="text-sm uppercase tracking-wider text-slate-500 font-semibold mb-3">Minha Estufa</h2>
+            <div id="slots-container" class="grid grid-cols-1 gap-4">
+                <div class="animate-pulse bg-slate-800 h-24 rounded-lg"></div>
+            </div>
+        </section>
+
+        <section>
+            <h2 class="text-sm uppercase tracking-wider text-slate-500 font-semibold mb-3">Objetivos (Crafting)</h2>
+            <div id="objetivos-container" class="space-y-3">
+            </div>
+        </section>
+
+    </main>
+
+    <script>
+        async function carregarDados() {
+            // Chama a API do Python
+            const response = await fetch('/api/dados');
+            const dados = await response.json();
+
+            renderizarSlots(dados.slots);
+            renderizarObjetivos(dados.objetivos);
+
+            // Atualiza relógio
+            const agora = new Date();
+            document.getElementById('relogio').innerText = agora.toLocaleTimeString();
+        }
+
+        function renderizarSlots(slots) {
+            const container = document.getElementById('slots-container');
+            container.innerHTML = '';
+
+            slots.forEach(slot => {
+                // Lógica de UI baseada no status
+                let statusColor = 'border-slate-700 bg-slate-800 hover:border-slate-500 cursor-pointer'; // Adicionei cursor-pointer
+                let icon = '🕳️';
+                let acaoClick = `abrirModal(${slot.id})`; // Ação padrão: abrir modal de plantio
+
+                if (slot.status === 'crescendo') {
+                    statusColor = 'border-green-500/50 bg-green-900/20';
+                    icon = '🌱';
+                    acaoClick = ''; // Por enquanto, não faz nada se estiver crescendo
+                } else if (slot.status === 'pronto') {
+                    statusColor = 'border-yellow-500 bg-yellow-900/30 animate-pulse cursor-pointer';
+                    icon = '✨';
+                    acaoClick = `alert('Função Colher em breve!')`;
+                }
+
+                const html = `
+                <div onclick="${acaoClick}" class="border ${statusColor} rounded-xl p-4 flex items-center justify-between shadow-sm transition-all select-none">
+                    <div class="flex items-center gap-4">
+                        <div class="text-3xl">${icon}</div>
+                        <div>
+                            <div class="font-bold text-lg">${slot.planta || 'Vazio'}</div>
+                            <div class="text-xs text-slate-400 uppercase">Slot ${slot.id} • ${slot.status}</div>
+                        </div>
+                    </div>
+                    ${slot.status === 'crescendo' ? `
+                        <div class="text-right">
+                           <span class="text-xs font-mono bg-black/30 px-2 py-1 rounded text-green-400">
+                               ${slot.tempo_restante_visual || '...'}
+                           </span>
+                        </div>
+                    ` : ''}
+                </div>
+                `;
+                container.innerHTML += html;
+            });
+        }
+
+        function renderizarObjetivos(objetivos) {
+            const container = document.getElementById('objetivos-container');
+            container.innerHTML = '';
+
+            objetivos.forEach(obj => {
+                let htmlIngredientes = '';
+                let podeCraftar = true;
+
+                obj.ingredientes.forEach(ing => {
+                    const faltam = ing.alvo - ing.atual;
+                    if (faltam > 0) podeCraftar = false;
+
+                    htmlIngredientes += `
+                        <div class="flex justify-between text-xs mt-1">
+                            <span class="${faltam <= 0 ? 'text-green-500 line-through' : 'text-slate-300'}">
+                                ${ing.item}
+                            </span>
+                            <span class="${faltam <= 0 ? 'text-green-500' : 'text-red-400'}">
+                                ${ing.atual}/${ing.alvo}
+                            </span>
+                        </div>
+                    `;
+                });
+
+                const cardHtml = `
+                    <div class="bg-slate-800 rounded-lg p-3 border ${podeCraftar ? 'border-yellow-500' : 'border-slate-700'}">
+                        <div class="flex justify-between items-center mb-2">
+                            <h3 class="font-bold text-sm text-white">${obj.nome_item}</h3>
+                            ${podeCraftar ? '⭐' : ''}
+                        </div>
+                        <div class="pl-2 border-l-2 border-slate-600">
+                            ${htmlIngredientes}
+                        </div>
+                    </div>
+                `;
+                container.innerHTML += cardHtml;
+            });
+        }
+
+        // --- FUNÇÕES DO MODAL ---
+
+        function abrirModal(idSlot) {
+            document.getElementById('input-slot-id').value = idSlot;
+            document.getElementById('input-nome').value = '';
+            document.getElementById('input-tempo').value = '';
+            document.getElementById('modal-plantio').classList.remove('hidden');
+        }
+
+        function fecharModal() {
+            document.getElementById('modal-plantio').classList.add('hidden');
+        }
+
+        async function confirmarPlantio() {
+            const id = document.getElementById('input-slot-id').value;
+            const nome = document.getElementById('input-nome').value;
+            const tempo = document.getElementById('input-tempo').value;
+
+            if (!nome || !tempo) return alert("Preencha tudo!");
+
+            // Envia para o Python
+            await fetch('/api/plantar', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    slot_id: parseInt(id),
+                    nome_planta: nome,
+                    tempo_minutos: parseInt(tempo)
+                })
+            });
+
+            fecharModal();
+            carregarDados(); // Atualiza a tela imediatamente
+        }
+
+        // Atualiza a cada 5 segundos
+        carregarDados();
+        setInterval(carregarDados, 5000);
+    </script>
+
+
+
+    <div id="modal-plantio"
+        class="fixed inset-0 bg-black/80 hidden flex items-center justify-center z-50 backdrop-blur-sm">
+        <div class="bg-slate-800 p-6 rounded-xl w-11/12 max-w-md border border-slate-600 shadow-2xl">
+            <h3 class="text-xl font-bold mb-4 text-green-400">🌱 Novo Plantio</h3>
+
+            <input type="hidden" id="input-slot-id">
+
+            <label class="block text-sm text-slate-400 mb-1">Nome da Planta</label>
+            <input type="text" id="input-nome"
+                class="w-full bg-slate-900 border border-slate-700 rounded p-2 mb-4 text-white focus:border-green-500 outline-none"
+                placeholder="Ex: Batata Solar">
+
+            <label class="block text-sm text-slate-400 mb-1">Tempo (em minutos)</label>
+            <input type="number" id="input-tempo"
+                class="w-full bg-slate-900 border border-slate-700 rounded p-2 mb-6 text-white focus:border-green-500 outline-none"
+                placeholder="Ex: 60">
+
+            <div class="flex justify-end gap-3">
+                <button onclick="fecharModal()" class="px-4 py-2 text-slate-300 hover:text-white">Cancelar</button>
+                <button onclick="confirmarPlantio()"
+                    class="bg-green-600 hover:bg-green-500 px-6 py-2 rounded font-bold text-white transition-colors">Plantar</button>
+            </div>
+        </div>
+    </div>
+</body>
+
+</html>

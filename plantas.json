@@ -35,10 +35,10 @@
         },
         {
             "id": 3,
-            "status": "vazio",
-            "planta": null,
-            "horario_plantio": null,
-            "tempo_total_minutos": 0,
+            "status": "crescendo",
+            "planta": "batata",
+            "horario_plantio": "2026-01-22 14:26:11",
+            "tempo_total_minutos": 114,
             "regada": false
         },
         {
