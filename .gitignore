@@ -1,0 +1,11 @@
+# Ignorar arquivos compilados do Python
+__pycache__/
+*.py[cod]
+
+# Ignorar configurações locais do VS Code (opcional, mas recomendado)
+.vscode/
+
+# Ignorar arquivos de build (para quando transformarmos em .exe no futuro)
+build/
+dist/
+*.spec
